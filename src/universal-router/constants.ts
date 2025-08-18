@@ -35,6 +35,9 @@ export enum Protocol {
   METASTABLE = 'METASTABLE',
   MAGMA_FINANCE = 'MAGMA_FINANCE',
   MOMENTUM_FINANCE = 'MOMENTUM_FINANCE',
+  FULL_SAIL = 'FULL_SAIL',
+  SEVENK_V1 = 'SEVENK_V1',
+  IPX_TIDE = 'IPX_TIDE',
 }
 
 export enum CommissionType {
@@ -64,6 +67,8 @@ export const CONFIGS: { [key: string]: Config } = {
       singleQuoteURI: 'https://api.flowx.finance/flowx-ag-routing/api/v1/quote',
       batchQuoteURI:
         'https://api.flowx.finance/flowx-ag-routing/api/v1/batch-quotes',
+      multipleQuotesURI:
+        'https://api.flowx.finance/flowx-ag-routing/api/v1/multi-quotes',
       requestTimeout: 30000,
     },
     graphql: {
@@ -99,6 +104,7 @@ export const CONFIGS: { [key: string]: Config } = {
         'https://flowx-dev.flowx.finance/flowx-ag-routing/api/v1/quote',
       batchQuoteURI:
         'https://flowx-dev.flowx.finance/flowx-ag-routing/api/v1/batch-quotes',
+      multipleQuotesURI: 'http://localhost:8080/flowx-be/api/v1/multi-quotes',
       requestTimeout: 30000,
     },
     graphql: {

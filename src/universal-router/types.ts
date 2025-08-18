@@ -38,6 +38,7 @@ interface GraphqlConfig {
 
 interface QuoterConfig {
   singleQuoteURI: string;
+  multipleQuotesURI: string;
   batchQuoteURI: string;
   requestTimeout: number;
 }
@@ -45,5 +46,6 @@ interface QuoterConfig {
 export type OracleInfo = {
   oracleType: OracleType;
   oracleIndex?: number;
+  oracleId?: string;
   priceId: string;
 };

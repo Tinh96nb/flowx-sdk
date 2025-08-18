@@ -5,17 +5,10 @@ import {
   TransactionResult,
 } from '@mysten/sui/transactions';
 
-import {
-  BigintIsh,
-  Coin,
-  MaxUint64,
-  NETWORK,
-  Percent,
-  TxBuilder,
-} from '../core';
-import { ClmmPool, ClmmPosition } from './entities';
+import { Coin, MaxUint64, NETWORK, Percent, TxBuilder } from '../core';
+import { ClmmPosition } from './entities';
 import { ClmmPoolManager } from './ClmmPoolManager';
-import { CONFIGS, FeeAmount, MODULE_POSITION_MANAGER } from './constants';
+import { CONFIGS, MODULE_POSITION_MANAGER } from './constants';
 import { I32 } from './I32';
 import {
   SUI_CLOCK_OBJECT_ID,
@@ -130,7 +123,7 @@ export class ClmmPositionManager extends TxBuilder {
           useGasCoin:
             normalizeStructTag(SUI_TYPE_ARG) ===
             normalizeStructTag(position.amountX.coin.coinType),
-        }),
+        })(this._tx),
       options.coinYIn ??
         coinWithBalance({
           type: position.amountY.coin.coinType,
@@ -138,7 +131,7 @@ export class ClmmPositionManager extends TxBuilder {
           useGasCoin:
             normalizeStructTag(SUI_TYPE_ARG) ===
             normalizeStructTag(position.amountY.coin.coinType),
-        }),
+        })(this._tx),
     ];
 
     this._tx.moveCall({

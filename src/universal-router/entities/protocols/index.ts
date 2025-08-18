@@ -25,3 +25,6 @@ export * from './SteammSwap';
 export * from './MetastableSwap';
 export * from './MagmaFinanceSwap';
 export * from './MomentumFinanceSwap';
+export * from './FullSailSwap';
+export * from './SevenKV1DexSwap';
+export * from './IpxTideSwap';

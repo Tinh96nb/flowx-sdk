@@ -160,7 +160,7 @@ export class TxBuilder {
       splitObjectIds.map((items) =>
         this._client.multiGetObjects({
           ids: items,
-          options: { showContent: true },
+          options: { showContent: true, showType: true },
         })
       )
     );

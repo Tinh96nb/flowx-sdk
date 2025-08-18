@@ -1,60 +1,63 @@
+import { normalizeStructTag, normalizeSuiObjectId } from '@mysten/sui/utils';
 import invariant from 'tiny-invariant';
-import { normalizeSuiObjectId } from '@mysten/sui/utils';
 
+import BigNumber from 'bignumber.js';
+import { BN } from 'bn.js';
+import { ClmmTickMath } from '../../clmm/utils';
 import {
-  ObjectId,
   Coin,
-  Coin as Token,
-  removeEmptyFields,
   NETWORK,
   ONE,
+  ObjectId,
+  Percent,
+  Coin as Token,
   maxBn,
   minBn,
-  Percent,
+  removeEmptyFields,
 } from '../../core';
-import { CONFIGS, CommissionType, BPS, Protocol } from '../constants';
-import { IQuoter } from './IQuoter';
+import { BPS, CONFIGS, CommissionType, Protocol } from '../constants';
 import { Route } from '../entities';
 import {
+  AftermathLsdSwap,
   AftermathSwap,
+  AlphaFiSwap,
+  BlueMoveFunSwap,
+  BluefinSwap,
+  BluemoveSwap,
   CetusSwap,
   DeepbookSwap,
+  DeepbookV3Swap,
+  FlowxPmmSwap,
   FlowxV2Swap,
   FlowxV3Swap,
-  KriyaDexSwap,
-  TurbosSwap,
-  KriyaV3Swap,
-  BluemoveSwap,
-  DeepbookV3Swap,
-  BluefinSwap,
-  FlowxPmmSwap,
-  BlueMoveFunSwap,
-  HopFunSwap,
-  SevenKFunSwap,
-  TurbosFunSwap,
-  ObricSwap,
+  FullSailSwap,
   HaedalPMMSwap,
   HaedalSwap,
-  SpringSuiSwap,
-  AlphaFiSwap,
-  VoloLsdSwap,
-  AftermathLsdSwap,
-  SteammSwap,
-  MetastableSwap,
+  HopFunSwap,
+  IpxTideSwap,
+  KriyaDexSwap,
+  KriyaV3Swap,
   MagmaFinanceSwap,
+  MetastableSwap,
   MomentumFinanceSwap,
+  ObricSwap,
+  SevenKFunSwap,
+  SevenKV1DexSwap,
+  SpringSuiSwap,
+  SteammSwap,
+  TurbosFunSwap,
+  TurbosSwap,
+  VoloLsdSwap,
 } from '../entities/protocols';
+import { OracleInfo, SteammQuoterType } from '../types';
 import JsonBigInt from '../utils/JsonBigInt';
-import { BN } from 'bn.js';
+import { IBatchQuoter } from './IBatchQuoter';
+import { IQuoter } from './IQuoter';
 import {
   BatchQuoteQueryParams,
   GetRoutesResult,
   SingleQuoteQueryParams,
 } from './types';
-import { IBatchQuoter } from './IBatchQuoter';
-import { ClmmTickMath } from '../../clmm/utils';
-import BigNumber from 'bignumber.js';
-import { OracleInfo, SteammQuoterType } from '../types';
 
 interface AggregatorQuoterResponse {
   code: number;
@@ -152,6 +155,10 @@ interface SteammExtra extends ExtraInfoDefault, OracleExtra {
   bankYStructTag: string;
   lendingMarketX: string;
   lendingMarketY: string;
+  poolStructTag: string;
+}
+
+interface SevenKV1DexExtra extends ExtraInfoDefault, OracleExtra {
   poolStructTag: string;
 }
 
@@ -642,10 +649,98 @@ export class AggregatorQuoter
           protocolConfig,
         });
       }
-
+      case Protocol.FULL_SAIL: {
+        const extra = path.extra as UniswapV3Extra;
+        const [minSqrtPriceX64HasLiquidity, maxSqrtPriceX64HasLiquidity] = [
+          new BN(
+            extra.minSqrtPriceHasLiquidity?.toString() ||
+              ClmmTickMath.MIN_SQRT_RATIO
+          ),
+          new BN(
+            extra.maxSqrtPriceHasLiquidity?.toString() ||
+              ClmmTickMath.MAX_SQRT_RATIO
+          ),
+        ];
+        return new FullSailSwap({
+          network: this.network,
+          pool: new ObjectId(path.poolId),
+          input: new Coin(path.tokenIn),
+          output: new Coin(path.tokenOut),
+          amountIn: path.amountIn.toString(),
+          amountOut: path.amountOut.toString(),
+          xForY: !!extra.swapXToY,
+          sqrtPriceX64Limit: extra.nextStateSqrtRatioX64?.toString() || '0',
+          maxSqrtPriceX64HasLiquidity: minBn(
+            ClmmTickMath.MAX_SQRT_RATIO.sub(ONE),
+            maxSqrtPriceX64HasLiquidity
+          ),
+          minSqrtPriceX64HasLiquidity: maxBn(
+            ClmmTickMath.MIN_SQRT_RATIO.add(ONE),
+            minSqrtPriceX64HasLiquidity
+          ),
+          protocolConfig,
+        });
+      }
+      case Protocol.SEVENK_V1: {
+        const extra = path.extra as SevenKV1DexExtra;
+        return new SevenKV1DexSwap({
+          network: this.network,
+          pool: new ObjectId(path.poolId),
+          input: new Coin(path.tokenIn),
+          output: new Coin(path.tokenOut),
+          amountIn: path.amountIn.toString(),
+          amountOut: path.amountOut.toString(),
+          xForY: !!extra.swapXToY,
+          oracles: extra.oracles,
+          poolStructTag: extra.poolStructTag,
+          protocolConfig,
+        });
+      }
+      case Protocol.IPX_TIDE: {
+        const extra = path.extra as OracleExtra;
+        return new IpxTideSwap({
+          network: this.network,
+          pool: new ObjectId(path.poolId),
+          input: new Coin(path.tokenIn),
+          output: new Coin(path.tokenOut),
+          amountIn: path.amountIn.toString(),
+          amountOut: path.amountOut.toString(),
+          oracles: extra.oracles,
+          protocolConfig,
+        });
+      }
       default:
         throw new Error(`${path.source} protocol not supported yet`);
     }
+  }
+
+  public fromRawQuote(
+    rawQuote: AggregatorQuoterResult
+  ): GetRoutesResult<Coin, Coin> {
+    const priceImpact = new BigNumber(rawQuote.priceImpact)
+      .multipliedBy(BPS.toString())
+      .div(100)
+      .toFixed(0);
+    
+    return {
+      coinIn: new Coin(rawQuote.tokenIn),
+      coinOut: new Coin(rawQuote.tokenOut),
+      amountIn: rawQuote.amountIn,
+      amountOut: rawQuote.amountOut,
+      priceImpact: new Percent(priceImpact, BPS),
+      routes: rawQuote.paths.map(
+        (paths) =>
+          new Route(
+            this.network,
+            paths.map((path) =>
+              this.buildPath(
+                path,
+                rawQuote.protocolConfig[path.source.toLowerCase()]
+              )
+            )
+          )
+      ),
+    };
   }
 
   async getRoutes(
@@ -702,31 +797,7 @@ export class AggregatorQuoter
     try {
       const quoteResponse: AggregatorQuoterResponse = JsonBigInt.parse(rawResp);
       invariant(quoteResponse.code === 0, quoteResponse.message);
-
-      const priceImpact = new BigNumber(quoteResponse.data.priceImpact)
-        .multipliedBy(BPS.toString())
-        .div(100)
-        .toFixed(0);
-
-      return {
-        coinIn,
-        coinOut,
-        amountIn: quoteResponse.data.amountIn,
-        amountOut: quoteResponse.data.amountOut,
-        priceImpact: new Percent(priceImpact, BPS),
-        routes: quoteResponse.data.paths.map(
-          (paths) =>
-            new Route(
-              this.network,
-              paths.map((path) =>
-                this.buildPath(
-                  path,
-                  quoteResponse.data.protocolConfig[path.source.toLowerCase()]
-                )
-              )
-            )
-        ),
-      };
+      return this.fromRawQuote(quoteResponse.data);
     } catch (error: any) {
       throw new Error(`Get quote failed due to error ${error.message}`);
     }
@@ -797,5 +868,76 @@ export class AggregatorQuoter
           )
       ),
     };
+  }
+
+  async getMultipleRoutes(
+    params: SingleQuoteQueryParams[],
+    externalSignal?: AbortSignal
+  ): Promise<GetRoutesResult<Coin, Coin>[]> {
+    invariant(params.length > 0, 'PARAMS_EMPTY');
+    invariant(
+      params.every(
+        (p) =>
+          p.tokenIn &&
+          p.tokenOut &&
+          p.amountIn &&
+          p.includeSources &&
+          p.includeSources.length > 0
+      ),
+      'INVALID_PARAMS'
+    );
+
+    const requestBody = params.map((p) => {
+      const coinIn = new Coin(p.tokenIn);
+      const coinOut = new Token(p.tokenOut);
+      const r: any = {
+        tokenIn: normalizeStructTag(p.tokenIn),
+        tokenOut: normalizeStructTag(p.tokenOut),
+        amountIn: p.amountIn,
+        includeSources: p.includeSources?.join(',') || '',
+        excludeSources: p.excludeSources?.join(',') || '',
+        excludePools:
+          p.excludePools?.map((pool) => normalizeSuiObjectId(pool)).join(',') ||
+          '',
+        maxHops: p.maxHops ?? 0,
+        splitDistributionPercent: p.splitDistributionPercent ?? 0,
+      };
+
+      if (
+        p.commission &&
+        (p.commission.coin.equals(coinIn) || p.commission.coin.equals(coinOut))
+      ) {
+        r['feeToken'] = p.commission.coin.coinType;
+        if (p.commission.type === CommissionType.PERCENTAGE) {
+          r['feeInBps'] = new BN(p.commission.value)
+            .mul(new BN(AGGREGATOR_BPS))
+            .div(BPS)
+            .toString();
+        } else {
+          r['feeAmount'] = p.commission.value.toString();
+        }
+      }
+
+      return r;
+    });
+
+    const resp = await fetch(
+      `${CONFIGS[this.network].quoter.multipleQuotesURI}`,
+      {
+        method: 'POST',
+        signal: externalSignal ?? AbortSignal.timeout(CONFIGS[this.network].quoter.requestTimeout),
+        body: JSON.stringify(requestBody),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const rawResp = JsonBigInt.parse(await resp.text());
+    invariant(rawResp.code === 0, rawResp.message);
+    return rawResp.data.response.map((data: AggregatorQuoterResult) => {
+      data.protocolConfig = rawResp.data.protocolConfig;
+      return this.fromRawQuote(data);
+    });
   }
 }

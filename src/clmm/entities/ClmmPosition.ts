@@ -5,6 +5,7 @@ import {
   ADDRESS_ZERO,
   BigintIsh,
   Coin,
+  MaxUint64,
   ONE,
   ObjectId,
   Percent,
@@ -26,6 +27,7 @@ import {
 import { encodeSqrtRatioX64 } from '../utils/encodeSqrtRatioX64';
 import { ClmmFullMath } from '../utils/ClmmFullMath';
 import { ClmmPositionReward } from './ClmmPositionReward';
+import { isNil } from 'lodash';
 
 interface PositionRewardInfoArgs {
   coinsOwedReward: BigintIsh;
@@ -218,6 +220,20 @@ export class ClmmPosition extends ObjectId {
     return this._mintAmounts;
   }
 
+  /**
+   * Computes the maximum amount of liquidity received for a given amount of tokenX, tokenY,
+   * and the prices at the tick boundaries.
+   * @param objectId The object ID of the position, if it exists
+   * @param owner The owner of the position
+   * @param pool The pool for which the position should be created
+   * @param tickLower The lower tick of the position
+   * @param tickUpper The upper tick of the position
+   * @param amountX tokenX amount
+   * @param amountY tokenY amount
+   * @param useFullPrecision If false, liquidity will be maximized according to what the router can calculate,
+   * not what core can theoretically support
+   * @returns The position
+   */
   public static fromAmounts({
     objectId,
     owner,
@@ -239,6 +255,7 @@ export class ClmmPosition extends ObjectId {
   }) {
     const sqrtRatioAX64 = ClmmTickMath.tickIndexToSqrtPriceX64(tickLower);
     const sqrtRatioBX64 = ClmmTickMath.tickIndexToSqrtPriceX64(tickUpper);
+
     return new ClmmPosition({
       objectId,
       owner,
@@ -258,6 +275,88 @@ export class ClmmPosition extends ObjectId {
       feeGrowthInsideXLast: ZERO,
       feeGrowthInsideYLast: ZERO,
       rewardInfos: [],
+    });
+  }
+
+  /**
+   * Computes a position with the maximum amount of liquidity received for a given amount of tokenX, assuming an unlimited amount of tokenY
+   * @param objectId The object ID of the position, if it exists
+   * @param owner The owner of the position
+   * @param pool The pool for which the position is created
+   * @param tickLower The lower tick
+   * @param tickUpper The upper tick
+   * @param amountX The desired amount of tokenX
+   * @param useFullPrecision If true, liquidity will be maximized according to what the router can calculate,
+   * not what core can theoretically support
+   * @returns The position
+   */
+  public static fromAmountX({
+    objectId,
+    owner,
+    pool,
+    tickLower,
+    tickUpper,
+    amountX,
+    useFullPrecision,
+  }: {
+    objectId?: string;
+    owner: string;
+    pool: ClmmPool;
+    tickLower: number;
+    tickUpper: number;
+    amountX: BigintIsh;
+    useFullPrecision: boolean;
+  }) {
+    return ClmmPosition.fromAmounts({
+      objectId,
+      owner,
+      pool,
+      tickLower,
+      tickUpper,
+      amountX,
+      amountY: MaxUint64,
+      useFullPrecision,
+    });
+  }
+
+  /**
+   * Computes a position with the maximum amount of liquidity received for a given amount of tokenY, assuming an unlimited amount of tokenX
+   * @param objectId The object ID of the position, if it exists
+   * @param owner The owner of the position
+   * @param pool The pool for which the position is created
+   * @param tickLower The lower tick
+   * @param tickUpper The upper tick
+   * @param amountY The desired amount of tokenY
+   * @param useFullPrecision If true, liquidity will be maximized according to what the router can calculate,
+   * not what core can theoretically support
+   * @returns The position
+   */
+  public static fromAmountY({
+    objectId,
+    owner,
+    pool,
+    tickLower,
+    tickUpper,
+    amountY,
+    useFullPrecision,
+  }: {
+    objectId?: string;
+    owner: string;
+    pool: ClmmPool;
+    tickLower: number;
+    tickUpper: number;
+    amountY: BigintIsh;
+    useFullPrecision: boolean;
+  }) {
+    return ClmmPosition.fromAmounts({
+      objectId,
+      owner,
+      pool,
+      tickLower,
+      tickUpper,
+      amountX: MaxUint64,
+      amountY,
+      useFullPrecision,
     });
   }
 

@@ -14,7 +14,8 @@ export class ClmmPoolManager extends TxBuilder {
     super(network);
   }
 
-  public createPool(pool: ClmmPool, tx: Transaction) {
+  public createPool(pool: ClmmPool) {
+    const tx = this._tx;
     tx.moveCall({
       target: `${
         CONFIGS[this.network].packageId
@@ -30,7 +31,7 @@ export class ClmmPoolManager extends TxBuilder {
     });
   }
 
-  public async createPoolV2(pool: ClmmPool, tx: Transaction) {
+  public async createPoolV2(pool: ClmmPool) {
     const [metadataX, metadataY] = await Promise.all([
       this._client
         .getCoinMetadata({
@@ -48,6 +49,7 @@ export class ClmmPoolManager extends TxBuilder {
       'Failed to fetch coin metadata for pool coins'
     );
 
+    const tx = this._tx;
     tx.moveCall({
       target: `${
         CONFIGS[this.network].packageId
@@ -169,10 +171,14 @@ export class ClmmPoolManager extends TxBuilder {
   }
 
   public async getPools(): Promise<ClmmPool[]> {
-    const dynamicDatas = await this.getFullyDynamicFields(
+    const dynamicFields = await this.getFullyDynamicFields(
       CONFIGS[this.network].poolRegistryObject
     );
-    const poolObjectIds = dynamicDatas.map((it) => it.objectId);
+    const poolObjectIds = dynamicFields
+      .filter((df) =>
+        df.objectType.startsWith(`${CONFIGS[this.network].poolType}`)
+      )
+      .map((it) => it.objectId);
 
     return this.getPoolDetails(poolObjectIds);
   }
